@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab 5 · Control discreto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<div class="wrap">
+
+  <!-- ===== Barra superior ===== -->
+  <nav class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><path d="M3 23h4v-7h4v-6h4v4h4v-6h4v6h4" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="brand-txt">
+        <b>Control discreto</b>
+        <small>Lab 5 · Piñón–cremallera · ESP32</small>
+      </div>
+    </div>
+    <div class="top-meta">
+      <span class="meta"><i>T</i>10 ms</span>
+      <span class="meta"><i>Δx</i>0.0671 mm</span>
+      <span class="meta"><i>G(z)</i>ZOH</span>
+    </div>
+    <div class="connect">
+      <span class="status"><i class="dot" id="dot"></i><span id="st">Desconectado</span></span>
+      <button class="btn glow" id="btnConn">Conectar</button>
+    </div>
+  </nav>
+
+  <!-- ===== Encabezado ===== -->
+  <header class="hero">
+    <div class="hero-main">
+      <p class="eyebrow">Sistema mecánico piñón–cremallera</p>
+      <h1>Control en <span class="grad">discreto</span></h1>
+      <div class="law" id="law">
+        <span class="law-tag">Ley de control · ecuación en diferencias</span>
+        <div class="eq">
+          <span class="eq-lhs"><i>u</i>(<i>k</i>)</span><span class="op">=</span>
+          <span class="tm mem">(1 − <i>s</i><sub>0</sub>)&#8202;<i>u</i>(<i>k</i>−1)</span><span class="op">+</span>
+          <span class="tm mem"><i>s</i><sub>0</sub>&#8202;<i>u</i>(<i>k</i>−2)</span><span class="op">+</span>
+          <span class="tm err"><i>q</i><sub>0</sub>&#8202;<i>e</i>(<i>k</i>)</span><span class="op">+</span>
+          <span class="tm err"><i>q</i><sub>1</sub>&#8202;<i>e</i>(<i>k</i>−1)</span><span class="op">+</span>
+          <span class="tm err"><i>q</i><sub>2</sub>&#8202;<i>e</i>(<i>k</i>−2)</span>
+        </div>
+        <div class="eq-key"><span class="k-mem">memoria de u</span><span class="k-err">error actual y pasado</span><span>T = 10 ms</span></div>
+      </div>
+    </div>
+
+    <div class="hero-ctrl">
+      <span class="bar-label">Controlador activo</span>
+      <div class="toggle3" id="modeToggle" data-mode="0">
+        <span class="toggle-thumb"></span>
+        <button class="toggle-opt active" data-mode="0"><em>■</em>Apagado</button>
+        <button class="toggle-opt" data-mode="1"><em>C–D</em>Continuo–discreto</button>
+        <button class="toggle-opt" data-mode="2"><em>D–D</em>Discreto–discreto</button>
+      </div>
+      <div class="hero-actions">
+        <label class="switch" title="Suma la zona muerta del motor (42.1 % / 55.3 %) a la salida del controlador">
+          <input type="checkbox" id="chkDz" checked><span>Compensar zona muerta</span>
+        </label>
+        <span class="pill" id="pillCfg">CFG · —</span>
+        <button class="btn ghost small" id="btnZero" title="La posición actual pasa a ser 0 mm">⌖ Fijar cero</button>
+        <button class="btn stop small" id="btnStop" title="Apaga el control y detiene el motor (tecla Esc)">■ STOP</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <!-- ===== Valores ===== -->
+  <section class="stats">
+    <article class="kpi k-pos">
+      <div class="kpi-head"><span class="chip">y</span><p class="eyebrow">Posición medida</p></div>
+      <p class="num" id="y">0.000<span>mm</span></p>
+      <div class="track center"><i id="by"></i><b class="marker" id="mr"></b></div>
+      <p class="foot" id="yfoot">modelo G(z): 0.000 mm</p>
+    </article>
+    <article class="kpi k-ref">
+      <div class="kpi-head"><span class="chip">r</span><p class="eyebrow">Referencia</p></div>
+      <p class="num" id="r">0.000<span>mm</span></p>
+      <div class="track center"><i id="br"></i></div>
+      <p class="foot" id="rfoot">derecha +, izquierda −</p>
+    </article>
+    <article class="kpi k-err">
+      <div class="kpi-head"><span class="chip">e</span><p class="eyebrow">Error r − y</p></div>
+      <p class="num" id="e">0.000<span>mm</span></p>
+      <div class="track center"><i id="be"></i></div>
+      <p class="foot" id="efoot">1 cuenta = 0.067 mm</p>
+    </article>
+    <article class="kpi k-u">
+      <div class="kpi-head"><span class="chip">u</span><p class="eyebrow">Acción de control</p></div>
+      <p class="num" id="u">0.00<span>%</span></p>
+      <div class="track center"><i id="bu"></i></div>
+      <p class="foot" id="ufoot">PWM aplicado 0.0 %</p>
+    </article>
+    <article class="kpi k-ise">
+      <div class="kpi-head"><span class="chip">∫</span><p class="eyebrow">ISE ventana</p></div>
+      <p class="num" id="ise">0.000<span>mm²·s</span></p>
+      <div class="track"><i id="bise"></i></div>
+      <p class="foot" id="isefoot">últimos 5 s</p>
+    </article>
+  </section>
+
+  <!-- ===== Gráficas + referencia ===== -->
+  <div class="main-grid">
+
+    <section class="panel dark chart-panel">
+      <div class="panel-head">
+        <div>
+          <h2><svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 3 5-8 4 5"/></svg>Respuesta en tiempo real</h2>
+          <div class="legend">
+            <span><i class="sw ref"></i>r</span>
+            <span><i class="sw pos"></i>y medida</span>
+            <label class="legend-check"><input type="checkbox" id="chkMod"><i class="sw mod"></i>y modelo G(z)</label>
+            <span><i class="sw err"></i>e</span>
+            <span><i class="sw uef"></i>u<sub>ef</sub></span>
+            <span><i class="sw pwm"></i>PWM</span>
+          </div>
+        </div>
+        <div class="chart-tools">
+          <div class="seg" id="segWin">
+            <button data-win="5">5 s</button>
+            <button data-win="10" class="active">10 s</button>
+            <button data-win="30">30 s</button>
+          </div>
+          <button class="icon-btn" id="btnPause" title="Pausar gráfica (barra espaciadora)">❚❚</button>
+        </div>
+      </div>
+      <div class="charts">
+        <div class="chart-box">
+          <div class="chart-label">Posición <span>mm</span></div>
+          <canvas id="cvPos"></canvas>
+        </div>
+        <div class="chart-row">
+          <div class="chart-box">
+            <div class="chart-label">Error <span>mm</span></div>
+            <canvas id="cvErr"></canvas>
+          </div>
+          <div class="chart-box">
+            <div class="chart-label">Control <span>%</span></div>
+            <canvas id="cvU"></canvas>
+          </div>
+        </div>
+        <div class="cursor-read hidden" id="cursorRead"></div>
+      </div>
+    </section>
+
+    <section class="panel dark ref-panel">
+      <div class="panel-head">
+        <div>
+          <h2><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>Setpoint</h2>
+          <p class="num big grad" id="sv">0.00<span>mm</span></p>
+        </div>
+        <span class="pill" id="svSide">centro</span>
+      </div>
+
+      <div class="rail" aria-hidden="true"><span>◀ izquierda</span><span>derecha ▶</span></div>
+      <div class="slider-box">
+        <div class="bubble" id="bubble">0.00 mm</div>
+        <input type="range" id="sl" min="-10" max="10" value="0" step="0.1" aria-label="Referencia en mm">
+        <div class="ticks"><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+      <div class="scale"><span>−10</span><span>−5</span><span>0</span><span>5</span><span>10 mm</span></div>
+
+      <div class="presets">
+        <button data-mm="-5">−5<small>mm</small></button>
+        <button data-mm="-2">−2<small>mm</small></button>
+        <button data-mm="0">0<small>centro</small></button>
+        <button data-mm="2">2<small>mm</small></button>
+        <button data-mm="5" class="star">5<small>mm</small></button>
+      </div>
+
+      <div class="apply-row">
+        <label class="input-unit">
+          <input type="number" id="inMm" min="-10" max="10" step="0.1" value="0">
+          <span>mm</span>
+        </label>
+        <button class="btn glow" id="btnApply">Enviar referencia →</button>
+      </div>
+      <label class="switch"><input type="checkbox" id="chkLive"><span>Enviar mientras arrastro</span></label>
+
+      <div class="subcard">
+        <p class="sub-title">Onda cuadrada</p>
+        <div class="sq-row">
+          <label class="input-unit"><input type="number" id="inSqA" min="0.5" max="10" step="0.5" value="4"><span>±mm</span></label>
+          <label class="input-unit"><input type="number" id="inSqP" min="1" max="20" step="0.5" value="3"><span>s</span></label>
+          <button class="btn ghost" id="btnSq">▶ Iniciar</button>
+        </div>
+      </div>
+
+      <div class="ref-note">
+        <span class="keys"><kbd>←</kbd><kbd>→</kbd> ±0.5 mm</span>
+        <span class="keys"><kbd>0</kbd> centro</span>
+        <span class="keys"><kbd>Esc</kbd> stop</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===== Abajo ===== -->
+  <div class="bottom-grid">
+
+    <section class="panel card isep">
+      <div class="panel-head">
+        <div>
+          <h2><svg viewBox="0 0 24 24"><path d="M4 20V4m0 16h16M8 16c3-9 6-9 9-4"/></svg>Índice de desempeño</h2>
+          <p class="hint">ISE = Σ e(k)²·T sobre una ventana deslizante.</p>
+        </div>
+        <select id="selIseWin" class="select" aria-label="Ventana del ISE">
+          <option value="2">2 s</option>
+          <option value="5" selected>5 s</option>
+          <option value="10">10 s</option>
+          <option value="30">30 s</option>
+        </select>
+      </div>
+      <div class="ise-big">
+        <div class="ise-cell">
+          <p class="num mid" id="iseW">0.000<span>mm²·s</span></p>
+          <p class="foot">ventana deslizante</p>
+        </div>
+        <div class="ise-cell">
+          <p class="num mid" id="iseStep">0.000<span>mm²·s</span></p>
+          <p class="foot">desde el último cambio de r</p>
+        </div>
+      </div>
+      <canvas id="cvIse"></canvas>
+
+      <div class="subcard">
+        <p class="sub-title">Prueba de escalón automática</p>
+        <p class="hint">Secuencia 0 → +A → −A → 0, cada tramo de duración D. Mide t<sub>s</sub>, M<sub>p</sub>, e<sub>ss</sub> e ISE.</p>
+        <div class="sq-row">
+          <label class="input-unit"><input type="number" id="inStA" min="1" max="10" step="0.5" value="5"><span>A·mm</span></label>
+          <label class="input-unit"><input type="number" id="inStD" min="1" max="10" step="0.5" value="2.5"><span>D·s</span></label>
+        </div>
+        <div class="btn-row">
+          <button class="btn solid" id="btnStepCur">Probar actual</button>
+          <button class="btn outline" id="btnStepBoth">Comparar ambos</button>
+        </div>
+        <div class="progress hidden" id="stProg"><i id="stBar"></i></div>
+        <p class="hint" id="stInfo">Selecciona un controlador y pulsa “Probar actual”, o compara los dos seguidos.</p>
+      </div>
+    </section>
+
+    <section class="panel card cmp">
+      <h2><svg viewBox="0 0 24 24"><path d="M5 20V10m7 10V4m7 16v-7"/></svg>Comparación de controladores</h2>
+      <table class="metrics" id="tblCmp">
+        <thead><tr><th></th><th><i class="tag cd">C–D</i>Continuo–discreto</th><th><i class="tag dd">D–D</i>Discreto–discreto</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="hint" id="cmpNote">Los valores de simulación (Simulink, con saturación y encoder) aparecen en gris como referencia.</p>
+      <div class="btn-row">
+        <button class="btn outline" id="btnCmpCsv" disabled>↓ Resultados CSV</button>
+      </div>
+
+      <div class="subcard">
+        <p class="sub-title">Registro de datos</p>
+        <p class="hint">Guarda todas las muestras con su tiempo y el periodo de muestreo para reconstruir y analizar.</p>
+        <div class="rec-box">
+          <button class="btn outline" id="btnRec">● Grabar</button>
+          <div class="rec-meta">
+            <p class="num mid" id="recN">0<span>muestras</span></p>
+            <p class="foot" id="recT">0.00 s · T = 10 ms</p>
+          </div>
+        </div>
+        <button class="btn solid full" id="btnCsv" disabled>↓ Descargar CSV</button>
+      </div>
+    </section>
+
+    <section class="panel card coefs">
+      <h2><svg viewBox="0 0 24 24"><path d="M7 4h10M7 20h10M9 4l6 16M15 4L9 20"/></svg>Coeficientes en el ESP32</h2>
+      <div class="formula">
+        <span class="eq-lhs"><i>C</i>(<i>z</i>)</span><span class="op">=</span>
+        <span class="frac">
+          <span class="num-f"><span class="err-c"><i>q</i><sub>0</sub> + <i>q</i><sub>1</sub><i>z</i><sup>−1</sup> + <i>q</i><sub>2</sub><i>z</i><sup>−2</sup></span></span>
+          <span class="den-f">(1 − <i>z</i><sup>−1</sup>)(1 + <span class="mem-c"><i>s</i><sub>0</sub></span><i>z</i><sup>−1</sup>)</span>
+        </span>
+      </div>
+      <div class="coef-tabs" id="coefTabs">
+        <button data-c="1" class="active">Continuo–discreto</button>
+        <button data-c="2">Discreto–discreto</button>
+      </div>
+      <div class="coef-grid">
+        <label><b>q<sub>0</sub></b><span class="input-unit"><input type="number" id="cq0" step="any"></span></label>
+        <label><b>q<sub>1</sub></b><span class="input-unit"><input type="number" id="cq1" step="any"></span></label>
+        <label><b>q<sub>2</sub></b><span class="input-unit"><input type="number" id="cq2" step="any"></span></label>
+        <label><b>s<sub>0</sub></b><span class="input-unit"><input type="number" id="cs0" step="any"></span></label>
+      </div>
+      <p class="diffeq" id="diffeq">—</p>
+      <div class="btn-row">
+        <button class="btn solid" id="btnCoef">Enviar coeficientes</button>
+        <button class="btn outline" id="btnCoefDef">Valores de diseño</button>
+      </div>
+
+      <div class="subcard">
+        <p class="sub-title">Lazo abierto (modo apagado)</p>
+        <div class="bench-presets">
+          <button data-u="-80" data-ms="150">◀ 80 %<small>150 ms</small></button>
+          <button data-u="0" data-ms="0">Parar<small>u = 0</small></button>
+          <button data-u="80" data-ms="150">80 % ▶<small>150 ms</small></button>
+        </div>
+        <p class="hint">Pulsos de PWM para revisar el motor y el encoder. Activan el modo apagado.</p>
+      </div>
+    </section>
+
+  </div>
+
+  <footer>USB Serial · 115200 baudios · Chrome, Edge u Opera · ESP32 + L298N + encoder 0.0671 mm/cuenta</footer>
+</div>
+
+<script src="script.js" defer></script>
+</body>
+</html>
